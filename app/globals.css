@@ -141,6 +141,18 @@
   --brutal-red: #ff0000;    /* alerts / destructive — active states only */
   --brutal-green: #00ff00;  /* terminal data streams — active states only */
   --brutal-blue: #0000ee;   /* raw hyperlink blue */
+
+  /* Pin every shadcn token to binary contrast so newly-added registry
+     components inherit brutal law without per-file overrides. */
+  --border: #000000;
+  --input: #000000;
+  --ring: #000000;
+  --sidebar-border: #000000;
+  --sidebar-ring: #000000;
+  --destructive: var(--brutal-red);
+  --muted-foreground: #000000;
+  --accent: #000000;
+  --accent-foreground: #ffffff;
 }
 
 * {
