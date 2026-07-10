@@ -1,188 +1,469 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import {
+  NODE_DEFS,
+  execCommand,
+  initSim,
+  ringPush,
+  stepSim,
+  type Command,
+  type LogLevel,
+  type NodeStatus,
+  type SimNode,
+  type SimState,
+  type StepEvent,
+} from "@/components/terminal-red/sim"
 
-type Node = { id: string; cpu: number; mem: number; critical: boolean; severed: boolean }
-type LogRow = { id: number; time: string; text: string; level: "INFO" | "CRIT" }
+const TICK_MS = 700
+const LOG_CAP = 100
+const TL_CAP = 500
+const TL_KEY = "terminalred.timeline.v1"
+const EXEC_HOLD_MS = 3000 // EXECUTED marker holds, then the trigger row returns (instant swap)
 
-const INITIAL_NODES: Node[] = ["NODE-01", "NODE-02", "NODE-03", "NODE-04"].map((id) => ({
-  id,
-  cpu: 20,
-  mem: 30,
-  critical: false,
-  severed: false,
-}))
+const W = "var(--brutal-white)"
+const G = "var(--brutal-green)"
+const R = "var(--brutal-red)"
 
-const MESSAGES = [
-  "PACKET STORM ABSORBED",
-  "DISK SECTOR REMAPPED",
-  "THREAD POOL SATURATED",
-  "CACHE PURGED WITHOUT MERCY",
-  "HEARTBEAT RECEIVED",
-  "SWAP THRASHING DETECTED",
-  "CONNECTION REFUSED. GOOD.",
-  "GC PAUSE 0MS. AS DEMANDED.",
+type LogRow = { id: number; ts: string; level: LogLevel; node: string; msg: string }
+type TimelineType = "ALERT" | "COMMAND" | "RECOVERY"
+type TimelineRow = { id: number; ts: string; type: TimelineType; node: string; detail: string }
+
+const utcClock = (ms: number) => new Date(ms).toISOString().slice(11, 19)
+const utcStamp = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace("T", " ") + "Z"
+const mmss = (ms: number) => {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
+}
+const hhmmss = (ms: number) => {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  return [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60]
+    .map((x) => String(x).padStart(2, "0"))
+    .join(":")
+}
+
+const TRIGGERS: { cmd: Command; label: string; color: string }[] = [
+  { cmd: "KILL", label: "KILL NODE", color: R },
+  { cmd: "RESTART", label: "RESTART", color: G },
+  { cmd: "DRAIN", label: "DRAIN", color: W },
 ]
 
-let logId = 1
+function triggersFor(status: NodeStatus) {
+  if (status === "SEVERED") return TRIGGERS.filter((t) => t.cmd === "RESTART")
+  if (status === "DRAINED") return TRIGGERS.filter((t) => t.cmd !== "DRAIN")
+  return TRIGGERS
+}
 
-function stamp() {
-  return new Date().toISOString().slice(11, 19)
+function StripCell({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="p-2" style={{ border: `2px solid ${W}` }}>
+      <div className="text-[10px] font-bold opacity-60">{label}</div>
+      <div className="text-[18px] font-bold leading-tight" style={{ color }}>
+        {value}
+      </div>
+    </div>
+  )
 }
 
 export default function TerminalRed() {
-  const [nodes, setNodes] = useState<Node[]>(INITIAL_NODES)
+  const [sim, setSim] = useState<SimState | null>(null)
   const [logs, setLogs] = useState<LogRow[]>([])
-  const nodesRef = useRef(nodes)
-  nodesRef.current = nodes
+  const [timeline, setTimeline] = useState<TimelineRow[]>([])
+  const [filter, setFilter] = useState("")
+  const [nowMs, setNowMs] = useState<number | null>(null)
+  const [executed, setExecuted] = useState<Record<string, { cmd: Command; at: number }>>({})
 
-  function pushLog(text: string, level: "INFO" | "CRIT" = "INFO") {
-    setLogs((prev) => [{ id: logId++, time: stamp(), text, level }, ...prev].slice(0, 50))
-  }
+  const simRef = useRef<SimState | null>(null)
+  const bootRef = useRef<number | null>(null)
+  const incidentStartRef = useRef<number | null>(null)
+  const tlLoadedRef = useRef(false)
+  const logIdRef = useRef(1)
+  const tlIdRef = useRef(1)
 
-  // Metric jumps: instant value swaps, no tween.
+  const appendLogs = useCallback((rows: Omit<LogRow, "id">[]) => {
+    if (!rows.length) return
+    setLogs((prev) => rows.reduce((acc, r) => ringPush(acc, { ...r, id: logIdRef.current++ }, LOG_CAP), prev))
+  }, [])
+
+  const appendTimeline = useCallback((rows: Omit<TimelineRow, "id">[]) => {
+    if (!rows.length) return
+    setTimeline((prev) => rows.reduce((acc, r) => ringPush(acc, { ...r, id: tlIdRef.current++ }, TL_CAP), prev))
+  }, [])
+
+  const applyEvents = useCallback(
+    (events: StepEvent[]) => {
+      if (!events.length) return
+      const at = Date.now()
+      const ts = utcClock(at)
+      const stamp = utcStamp(at)
+      const logRows: Omit<LogRow, "id">[] = []
+      const tlRows: Omit<TimelineRow, "id">[] = []
+      for (const e of events) {
+        switch (e.kind) {
+          case "TRAFFIC":
+            logRows.push({ ts, level: e.level, node: e.nodeId, msg: e.message })
+            break
+          case "INCIDENT_OPEN":
+            incidentStartRef.current = at
+            logRows.push({ ts, level: "ERROR", node: "SYSTEM", msg: `INCIDENT ${e.incidentId} OPENED` })
+            tlRows.push({ ts: stamp, type: "ALERT", node: "SYSTEM", detail: `INCIDENT ${e.incidentId} OPENED` })
+            break
+          case "CRITICAL":
+            logRows.push({ ts, level: "ERROR", node: e.nodeId, msg: `STATUS CRITICAL — CPU PEGGED — ${e.incidentId}` })
+            tlRows.push({ ts: stamp, type: "ALERT", node: e.nodeId, detail: `NODE CRITICAL — ${e.incidentId}` })
+            break
+          case "RECOVERY":
+            logRows.push({ ts, level: "INFO", node: e.nodeId, msg: "RESTORED TO OK" })
+            tlRows.push({ ts: stamp, type: "RECOVERY", node: e.nodeId, detail: "NODE RESTORED TO OK" })
+            break
+          case "INCIDENT_CLOSE":
+            incidentStartRef.current = null
+            logRows.push({ ts, level: "INFO", node: "SYSTEM", msg: `INCIDENT ${e.incidentId} CLOSED` })
+            tlRows.push({ ts: stamp, type: "RECOVERY", node: "SYSTEM", detail: `INCIDENT ${e.incidentId} CLOSED` })
+            break
+        }
+      }
+      appendLogs(logRows)
+      appendTimeline(tlRows)
+    },
+    [appendLogs, appendTimeline]
+  )
+
+  // Boot: load persisted timeline, start the sim. Post-mount only (SSR renders the -- frame).
+  useEffect(() => {
+    bootRef.current = Date.now()
+    let stored: TimelineRow[] = []
+    try {
+      const raw = localStorage.getItem(TL_KEY)
+      if (raw) {
+        const parsed: unknown = JSON.parse(raw)
+        if (Array.isArray(parsed)) stored = (parsed as TimelineRow[]).slice(0, TL_CAP)
+      }
+    } catch {
+      // Corrupt store: start empty.
+    }
+    tlIdRef.current = stored.reduce((m, r) => Math.max(m, r?.id ?? 0), 0) + 1
+    setTimeline(stored)
+    tlLoadedRef.current = true
+    const s = initSim(Math.random)
+    simRef.current = s
+    setSim(s)
+    setNowMs(Date.now())
+  }, [])
+
+  // Persist timeline (only after the stored copy has been loaded).
+  useEffect(() => {
+    if (!tlLoadedRef.current) return
+    try {
+      localStorage.setItem(TL_KEY, JSON.stringify(timeline))
+    } catch {
+      // Storage full/blocked: keep running in-memory.
+    }
+  }, [timeline])
+
+  // 700ms sim tick.
   useEffect(() => {
     const t = setInterval(() => {
-      setNodes((prev) =>
-        prev.map((n) => {
-          if (n.severed) return n
-          const cpu = Math.floor(Math.random() * 100)
-          const mem = Math.floor(Math.random() * 100)
-          return { ...n, cpu, mem, critical: cpu > 85 || mem > 90 }
-        })
-      )
-    }, 1200)
+      if (!simRef.current) return
+      const next = stepSim(simRef.current, Math.random)
+      simRef.current = next
+      setSim(next)
+      applyEvents(next.lastEvents)
+    }, TICK_MS)
+    return () => clearInterval(t)
+  }, [applyEvents])
+
+  // 1s wall clock: UTC time, uptime, incident elapsed; prunes EXECUTED markers.
+  useEffect(() => {
+    const t = setInterval(() => {
+      const now = Date.now()
+      setNowMs(now)
+      setExecuted((prev) => {
+        const keep = Object.entries(prev).filter(([, v]) => now - v.at < EXEC_HOLD_MS)
+        return keep.length === Object.keys(prev).length ? prev : Object.fromEntries(keep)
+      })
+    }, 1000)
     return () => clearInterval(t)
   }, [])
 
-  // Log stream.
-  useEffect(() => {
-    const t = setInterval(() => {
-      const live = nodesRef.current.filter((n) => !n.severed)
-      const node = live.length
-        ? live[Math.floor(Math.random() * live.length)]
-        : { id: "SYSTEM" }
-      const crit = nodesRef.current.some((n) => n.critical && !n.severed)
-      pushLog(
-        `${node.id} :: ${MESSAGES[Math.floor(Math.random() * MESSAGES.length)]}`,
-        crit && Math.random() > 0.6 ? "CRIT" : "INFO"
-      )
-    }, 800)
-    return () => clearInterval(t)
-  }, [])
-
-  function kill(id: string) {
-    setNodes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, severed: true, critical: false } : n))
-    )
-    pushLog(`${id} :: SEVERED BY OPERATOR. NO CONFIRMATION REQUESTED.`, "CRIT")
+  function runCommand(nodeId: string, cmd: Command) {
+    const cur = simRef.current
+    if (!cur) return
+    const next = execCommand(cur, nodeId, cmd, Math.random)
+    simRef.current = next
+    setSim(next)
+    const at = Date.now()
+    appendLogs([{ ts: utcClock(at), level: "WARN", node: nodeId, msg: `EXECUTED ${cmd} → rc=0` }])
+    appendTimeline([{ ts: utcStamp(at), type: "COMMAND", node: nodeId, detail: `${cmd} → rc=0` }])
+    applyEvents(next.lastEvents)
+    setExecuted((prev) => ({ ...prev, [nodeId]: { cmd, at } }))
   }
 
-  const anyCritical = nodes.some((n) => n.critical && !n.severed)
+  function exportTimeline() {
+    const blob = new Blob([JSON.stringify(timeline, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "terminal-red-timeline.json"
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function purgeTimeline() {
+    setTimeline([])
+    try {
+      localStorage.removeItem(TL_KEY)
+    } catch {
+      // Ignore.
+    }
+  }
+
+  const live = sim !== null
+  const nodes: SimNode[] = live
+    ? sim.nodes
+    : NODE_DEFS.map((d) => ({ ...d, cpu: 0, mem: 0, disk: 0, reqRate: 0, status: "OK" as NodeStatus }))
+  const okCount = live ? sim.nodes.filter((n) => n.status === "OK").length : null
+  const critCount = live ? sim.nodes.filter((n) => n.status === "CRITICAL").length : 0
+  const sevCount = live ? sim.nodes.filter((n) => n.status === "SEVERED").length : null
+  const drainCount = live ? sim.nodes.filter((n) => n.status === "DRAINED").length : null
+
+  const q = filter.trim().toUpperCase()
+  const shownLogs = q
+    ? logs.filter((l) => `${l.ts} ${l.level} ${l.node} ${l.msg}`.toUpperCase().includes(q))
+    : logs
+
+  const incidentActive = live && sim.incidentId !== null && critCount > 0
+  const elapsed =
+    incidentActive && nowMs !== null && incidentStartRef.current !== null
+      ? mmss(nowMs - incidentStartRef.current)
+      : "--:--"
 
   return (
-    <main
-      className="min-h-screen px-4 pb-8 max-w-6xl mx-auto"
-      style={{ background: "var(--brutal-black)", color: "var(--brutal-white)" }}
-    >
-      <div style={{ background: "var(--brutal-black)" }} className="fixed inset-0 -z-10" />
+    <main className="min-h-screen w-full px-3 pb-6 uppercase" style={{ background: "#000000", color: W }}>
+      <div className="fixed inset-0 -z-10" style={{ background: "#000000" }} />
 
-      <header className="py-4 flex items-baseline gap-4" style={{ borderBottom: "2px solid var(--brutal-white)" }}>
-        <Link href="/" className="underline text-[13px] font-bold uppercase" style={{ color: "var(--brutal-green)" }}>
-          ← BRUTAL UX
+      <header className="flex items-baseline justify-between gap-4 py-2" style={{ borderBottom: `2px solid ${W}` }}>
+        <h1 className="text-[20px] font-bold">TERMINAL RED — INCIDENT COMMAND</h1>
+        <Link href="/" className="underline font-bold text-[12px]" style={{ color: W }}>
+          ← INDEX
         </Link>
-        <h1 className="text-[24px] font-bold uppercase">TERMINAL RED — INCIDENT COMMAND</h1>
       </header>
 
-      {anyCritical && (
-        <div className="brutal-alert w-full py-2 px-4 mt-4 font-bold uppercase text-center">
-          CRITICAL NODE DETECTED. ACT OR WATCH IT BURN.
+      {/* STATUS STRIP */}
+      <section className="grid grid-cols-3 md:grid-cols-6 gap-2 py-2">
+        <StripCell label="UTC" value={nowMs !== null ? utcClock(nowMs) : "--:--:--"} color={G} />
+        <StripCell
+          label="UPTIME"
+          value={nowMs !== null && bootRef.current !== null ? hhmmss(nowMs - bootRef.current) : "--:--:--"}
+          color={G}
+        />
+        <StripCell label="NODES OK" value={okCount !== null ? String(okCount) : "--"} color={G} />
+        <StripCell label="CRITICAL" value={live ? String(critCount) : "--"} color={critCount > 0 ? R : G} />
+        <StripCell
+          label="SEVERED"
+          value={sevCount !== null ? String(sevCount) : "--"}
+          color={(sevCount ?? 0) > 0 ? R : G}
+        />
+        <StripCell label="DRAINED" value={drainCount !== null ? String(drainCount) : "--"} color={G} />
+      </section>
+
+      {/* INCIDENT ALERT BAR */}
+      {incidentActive && (
+        <div className="brutal-alert w-full py-2 px-3 mb-2 font-bold text-center text-[15px]">
+          INCIDENT {sim.incidentId} — {critCount} NODE(S) CRITICAL — ELAPSED {elapsed}
         </div>
       )}
 
-      <section className="py-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-        {nodes.map((n) => (
-          <div key={n.id} className="p-4" style={{ border: "2px solid var(--brutal-white)" }}>
-            <h2 className="text-[16px] font-bold uppercase mb-3" style={{ borderBottom: "2px solid var(--brutal-white)", paddingBottom: 8 }}>
-              {n.id}
-            </h2>
-            {n.severed ? (
-              <p className="text-[32px] font-bold uppercase" style={{ color: "var(--brutal-red)" }}>
-                SEVERED
-              </p>
-            ) : (
-              <>
-                <p className="text-[13px] font-bold uppercase">
-                  CPU{" "}
-                  <span style={{ color: "var(--brutal-green)" }} className="text-[24px]">
-                    {n.cpu}%
+      {/* NODE GRID */}
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {nodes.map((n) => {
+          const severed = n.status === "SEVERED"
+          const noData = !live || severed
+          const exec = executed[n.id]
+          const metric = (v: number, pct: boolean) => ({
+            text: noData ? "--" : String(v),
+            color: noData ? W : pct && v >= 90 ? R : G,
+          })
+          const rows: { label: string; v: ReturnType<typeof metric> }[] = [
+            { label: "CPU", v: metric(n.cpu, true) },
+            { label: "MEM", v: metric(n.mem, true) },
+            { label: "DISK", v: metric(n.disk, true) },
+            { label: "REQ/S", v: metric(n.reqRate, false) },
+          ]
+          return (
+            <div key={n.id} className="p-2" style={{ border: `2px solid ${W}` }}>
+              <div className="flex justify-between items-baseline pb-1 mb-1" style={{ borderBottom: `2px solid ${W}` }}>
+                <span className="font-bold text-[14px]">{n.id}</span>
+                <span className="text-[11px] font-bold opacity-60">{n.role}</span>
+              </div>
+              {rows.map((r) => (
+                <div key={r.label} className="flex justify-between items-baseline text-[12px]">
+                  <span className="font-bold opacity-60">{r.label}</span>
+                  <span className="font-bold text-[15px]" style={{ color: r.v.color }}>
+                    {r.v.text}
                   </span>
-                </p>
-                <p className="text-[13px] font-bold uppercase">
-                  MEM{" "}
-                  <span style={{ color: "var(--brutal-green)" }} className="text-[24px]">
-                    {n.mem}%
+                </div>
+              ))}
+              <div className="flex justify-between items-baseline text-[12px] py-1">
+                <span className="font-bold opacity-60">STATUS</span>
+                {!live ? (
+                  <span className="font-bold">--</span>
+                ) : n.status === "OK" ? (
+                  <span className="font-bold" style={{ color: G }}>
+                    OK
                   </span>
-                </p>
-                <p className="text-[13px] font-bold uppercase my-2">
-                  STATUS:{" "}
-                  {n.critical ? (
-                    <span className="brutal-alert px-2">CRITICAL</span>
-                  ) : (
-                    <span style={{ color: "var(--brutal-green)" }}>OK</span>
-                  )}
-                </p>
-                <button
-                  className="w-full font-bold uppercase py-2"
-                  style={{
-                    border: "2px solid var(--brutal-red)",
-                    background: "var(--brutal-black)",
-                    color: "var(--brutal-red)",
-                  }}
-                  onClick={() => kill(n.id)}
-                >
-                  KILL NODE
-                </button>
-              </>
-            )}
-          </div>
-        ))}
+                ) : n.status === "CRITICAL" ? (
+                  <span className="brutal-alert font-bold px-1">CRITICAL</span>
+                ) : n.status === "SEVERED" ? (
+                  <span className="font-bold" style={{ color: R }}>
+                    SEVERED
+                  </span>
+                ) : (
+                  <span className="font-bold">DRAINED</span>
+                )}
+              </div>
+              {!live ? null : exec ? (
+                <div className="text-[11px] font-bold py-1" style={{ color: G }}>
+                  EXECUTED {exec.cmd} → rc=0
+                </div>
+              ) : (
+                <div className="flex gap-1">
+                  {triggersFor(n.status).map((t) => (
+                    <button
+                      key={t.cmd}
+                      onClick={() => runCommand(n.id, t.cmd)}
+                      className="flex-1 text-[10px] font-bold py-1 px-1"
+                      style={{ border: `2px solid ${t.color}`, color: t.color, background: "#000000" }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </section>
 
-      <section className="py-6" style={{ borderTop: "3px solid var(--brutal-white)" }}>
-        <h2 className="text-[16px] font-bold uppercase mb-3">LOG STREAM — NEWEST FIRST — LAST 50</h2>
-        <table className="w-full border-collapse text-[13px]" style={{ border: "2px solid var(--brutal-white)" }}>
-          <tbody>
-            {logs.length === 0 ? (
+      {/* LOG STREAM + INCIDENT TIMELINE */}
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-2 pt-2 items-start">
+        <div>
+          <div className="flex items-center gap-2 py-1">
+            <h2 className="text-[13px] font-bold whitespace-nowrap">LOG STREAM — NEWEST FIRST</h2>
+            <input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="FILTER"
+              className="flex-1 min-w-0 text-[12px] font-bold px-2 py-1"
+              style={{ border: `2px solid ${W}`, background: "#000000", color: G, outline: "none" }}
+            />
+            <span className="text-[11px] font-bold opacity-60 whitespace-nowrap">
+              {shownLogs.length} / {logs.length}
+            </span>
+          </div>
+          <table className="w-full border-collapse text-[12px]" style={{ border: `2px solid ${W}` }}>
+            <thead>
               <tr>
-                <td className="p-2 font-bold uppercase" style={{ border: "2px solid var(--brutal-white)", color: "var(--brutal-green)" }}>
-                  AWAITING TELEMETRY.
-                </td>
+                {["TS", "LVL", "NODE", "MESSAGE"].map((h) => (
+                  <th
+                    key={h}
+                    className="text-left font-bold text-[11px] opacity-60 px-2 py-1"
+                    style={{ borderBottom: `2px solid ${W}` }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
-            ) : (
-              logs.map((l) => (
-                <tr key={l.id}>
-                  <td
-                    className="p-1 px-2 w-24"
-                    style={{ border: "2px solid var(--brutal-white)", color: "var(--brutal-green)" }}
-                  >
-                    {l.time}
-                  </td>
-                  <td
-                    className="p-1 px-2 font-bold"
-                    style={{
-                      border: "2px solid var(--brutal-white)",
-                      color: l.level === "CRIT" ? "var(--brutal-red)" : "var(--brutal-green)",
-                    }}
-                  >
-                    {l.text}
+            </thead>
+            <tbody>
+              {shownLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-2 py-1 font-bold" style={{ color: G }}>
+                    {logs.length === 0 ? "AWAITING TELEMETRY" : "0 MATCHES"}
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                shownLogs.map((l) => {
+                  const c = l.level === "ERROR" ? R : G
+                  return (
+                    <tr key={l.id} style={{ color: c }}>
+                      <td className="px-2 py-[1px] whitespace-nowrap">{l.ts}</td>
+                      <td className="px-2 py-[1px] font-bold">{l.level}</td>
+                      <td className="px-2 py-[1px] whitespace-nowrap">{l.node}</td>
+                      <td className="px-2 py-[1px] w-full">{l.msg}</td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div>
+          <div className="flex items-center gap-2 py-1">
+            <h2 className="text-[13px] font-bold whitespace-nowrap">INCIDENT TIMELINE — {timeline.length} EVENT(S)</h2>
+            <span className="flex-1" />
+            <button
+              onClick={exportTimeline}
+              className="text-[11px] font-bold px-2 py-1"
+              style={{ border: `2px solid ${W}`, color: W, background: "#000000" }}
+            >
+              EXPORT TIMELINE
+            </button>
+            <button
+              onClick={purgeTimeline}
+              className="text-[11px] font-bold px-2 py-1"
+              style={{ border: `2px solid ${R}`, color: R, background: "#000000" }}
+            >
+              PURGE TIMELINE
+            </button>
+          </div>
+          <table className="w-full border-collapse text-[12px]" style={{ border: `2px solid ${W}` }}>
+            <thead>
+              <tr>
+                {["TS", "TYPE", "NODE", "DETAIL"].map((h) => (
+                  <th
+                    key={h}
+                    className="text-left font-bold text-[11px] opacity-60 px-2 py-1"
+                    style={{ borderBottom: `2px solid ${W}` }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {timeline.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-2 py-1 font-bold" style={{ color: G }}>
+                    NO EVENTS RECORDED
+                  </td>
+                </tr>
+              ) : (
+                timeline.map((r) => {
+                  const c = r.type === "ALERT" ? R : r.type === "RECOVERY" ? G : W
+                  return (
+                    <tr key={r.id}>
+                      <td className="px-2 py-[1px] whitespace-nowrap" style={{ color: G }}>
+                        {r.ts}
+                      </td>
+                      <td className="px-2 py-[1px] font-bold" style={{ color: c }}>
+                        {r.type}
+                      </td>
+                      <td className="px-2 py-[1px] whitespace-nowrap" style={{ color: G }}>
+                        {r.node}
+                      </td>
+                      <td className="px-2 py-[1px] w-full" style={{ color: c }}>
+                        {r.detail}
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
     </main>
   )
