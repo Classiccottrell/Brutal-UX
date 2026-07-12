@@ -112,8 +112,11 @@ export default function Home() {
         <Link href="/terminal-red" className="underline mr-4" style={{ color: "var(--brutal-blue)" }}>
           /TERMINAL-RED
         </Link>
-        <Link href="/starktext" className="underline" style={{ color: "var(--brutal-blue)" }}>
+        <Link href="/starktext" className="underline mr-4" style={{ color: "var(--brutal-blue)" }}>
           /STARKTEXT
+        </Link>
+        <Link href="/validation" className="underline" style={{ color: "var(--brutal-blue)" }}>
+          /VALIDATION
         </Link>
       </footer>
     </main>
