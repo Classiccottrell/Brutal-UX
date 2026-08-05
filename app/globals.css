@@ -7,6 +7,11 @@
 @theme inline {
     --font-heading: var(--font-mono);
     --font-mono: var(--font-mono);
+    /* Primary ink swap: every bg-black/text-black/border-black (and -white)
+       utility in the app resolves through these two variables, so toggling
+       [data-ink] on <html> re-inks the whole system at once. */
+    --color-black: var(--brutal-black);
+    --color-white: var(--brutal-white);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -136,23 +141,39 @@
    Zero-Tariff Interfaces. The Scarcity Engine. Slapstick Cause-and-Effect.
    ============================================================ */
 :root {
-  --brutal-black: #000000;
-  --brutal-white: #ffffff;
+  /* Primary structure ink + its paper ground. Default pairing is the
+     brutalist #000/#fff; [data-ink="cobalt"] repins both to the Cobalt
+     Systems Modernism tokens (design.md §2: ink-cobalt / paper-white). */
+  --ink-black: #000000;
+  --ink-cobalt: #1233c7;
+  --paper-white-pure: #ffffff;
+  --paper-white-warm: #f7f6f1;
+
+  --brutal-black: var(--ink-black);
+  --brutal-white: var(--paper-white-pure);
   --brutal-red: #ff0000;    /* alerts / destructive — active states only */
   --brutal-green: #00ff00;  /* terminal data streams — active states only */
   --brutal-blue: #0000ee;   /* raw hyperlink blue */
 
   /* Pin every shadcn token to binary contrast so newly-added registry
      components inherit brutal law without per-file overrides. */
-  --border: #000000;
-  --input: #000000;
-  --ring: #000000;
-  --sidebar-border: #000000;
-  --sidebar-ring: #000000;
+  --border: var(--brutal-black);
+  --input: var(--brutal-black);
+  --ring: var(--brutal-black);
+  --sidebar-border: var(--brutal-black);
+  --sidebar-ring: var(--brutal-black);
   --destructive: var(--brutal-red);
-  --muted-foreground: #000000;
-  --accent: #000000;
-  --accent-foreground: #ffffff;
+  --muted-foreground: var(--brutal-black);
+  --accent: var(--brutal-black);
+  --accent-foreground: var(--brutal-white);
+}
+
+/* Primary ink swap. Toggle with the ⌘-free "C" hotkey or the on-screen
+   INK control (components/ink-toggle.tsx). See design.md for the source
+   two-ink system this borrows from. */
+[data-ink="cobalt"] {
+  --brutal-black: var(--ink-cobalt);
+  --brutal-white: var(--paper-white-warm);
 }
 
 * {

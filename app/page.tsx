@@ -27,8 +27,18 @@ const TYPE_SCALE = [
 ]
 
 const PALETTE = [
-  { hex: "#000000", role: "STRUCTURE", bg: "#000000", fg: "#FFFFFF" },
-  { hex: "#FFFFFF", role: "VOID", bg: "#FFFFFF", fg: "#000000" },
+  {
+    hex: "#000000 ⇄ #1233C7",
+    role: "STRUCTURE",
+    bg: "var(--brutal-black)",
+    fg: "var(--brutal-white)",
+  },
+  {
+    hex: "#FFFFFF ⇄ #F7F6F1",
+    role: "VOID",
+    bg: "var(--brutal-white)",
+    fg: "var(--brutal-black)",
+  },
   { hex: "#FF0000", role: "ALERT", bg: "#FF0000", fg: "#FFFFFF" },
   { hex: "#00FF00", role: "DATA", bg: "#00FF00", fg: "#000000" },
   { hex: "#0000EE", role: "LINK", bg: "#0000EE", fg: "#FFFFFF" },
@@ -40,8 +50,11 @@ export default function Home() {
       {/* SECTION 01 — MANIFESTO & TOKENS */}
       <section className="py-8">
         <h1 className="text-[48px] font-bold uppercase leading-none">BRUTAL UX</h1>
-        <p className="text-[24px] font-bold uppercase mt-2 mb-8">
+        <p className="text-[24px] font-bold uppercase mt-2 mb-2">
           UTILITY IS THE ONLY AESTHETIC.
+        </p>
+        <p className="text-[13px] font-bold uppercase mb-8" style={{ color: "var(--brutal-blue)" }}>
+          PRIMARY INK IS SWAPPABLE — #000000 ⇄ COBALT #1233C7. PRESS &quot;C&quot; OR USE THE INK CONTROL, BOTTOM RIGHT.
         </p>
 
         <h2 className="text-[32px] font-bold uppercase mb-4">
@@ -115,8 +128,11 @@ export default function Home() {
         <Link href="/starktext" className="underline mr-4" style={{ color: "var(--brutal-blue)" }}>
           /STARKTEXT
         </Link>
-        <Link href="/validation" className="underline" style={{ color: "var(--brutal-blue)" }}>
+        <Link href="/validation" className="underline mr-4" style={{ color: "var(--brutal-blue)" }}>
           /VALIDATION
+        </Link>
+        <Link href="/cobalt-systems" className="underline" style={{ color: "var(--brutal-blue)" }}>
+          /COBALT-SYSTEMS
         </Link>
       </footer>
     </main>
