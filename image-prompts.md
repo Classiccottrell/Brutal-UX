@@ -1,7 +1,7 @@
 # Cobalt Systems Modernism — Art Direction Prompt Set
 ### 10 reference prompts for shaping visual direction
 
-These are ready-to-paste, Midjourney-syntax (Style Block A) prompts built against [`design.md`](./design.md). Each is tagged with its mode, an art-direction intent line, and the negative-space/texture target it should land in. Swap to Style Block B prose (see `design.md` §8) for Flux/DALL-E 3.
+These are ready-to-paste, Midjourney-syntax (compact token block, `design.md` §7A) prompts built against [`design.md`](./design.md). Each is tagged with its mode, an art-direction intent line, and the negative-space/texture target it should land in. Swap to the natural-language master block (`design.md` §7B) for Flux/DALL-E 3 — see the model syntax cheat sheet in §13.
 
 All prompts assume `--v 6.1 --style raw --stylize 150` on Midjourney unless noted.
 
@@ -77,6 +77,6 @@ A dimensional grid of dots increasing in scale toward one corner, single continu
 
 ## Notes for use
 
-- Prompts 1–5 target Mode A's 12–25% negative-space range; prompts 6–10 target Mode B's 25–45% range. If a result looks cramped or busy for its mode, subtract an element before regenerating — do not just widen the margins.
+- Prompts 1–5 target Mode A's 12–25% negative-space range; prompts 6–10 target Mode B's 25–45% range (`design.md` §2, §3). If a result looks cramped or busy for its mode, subtract an element before regenerating — do not just widen the margins.
 - None of these introduce a third color or naturalistic lighting. Run any output through the anti-drift checklist (`design.md` §9) before treating it as on-system.
-- For Flux/DALL-E 3, translate using Style Block B prose (`design.md` §8) and keep the same subject/mode/intent — only the phrasing register changes, not the constraints.
+- For Flux/DALL-E 3, translate using the natural-language master block (`design.md` §7B) and keep the same subject/mode/intent — only the phrasing register changes, not the constraints.

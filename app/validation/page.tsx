@@ -229,7 +229,8 @@ export default function Validation() {
         <Link href="/" className="underline mr-4" style={{ color: "var(--brutal-blue)" }}>/INDEX</Link>
         <Link href="/netzero" className="underline mr-4" style={{ color: "var(--brutal-blue)" }}>/NETZERO</Link>
         <Link href="/terminal-red" className="underline mr-4" style={{ color: "var(--brutal-blue)" }}>/TERMINAL-RED</Link>
-        <Link href="/starktext" className="underline" style={{ color: "var(--brutal-blue)" }}>/STARKTEXT</Link>
+        <Link href="/starktext" className="underline mr-4" style={{ color: "var(--brutal-blue)" }}>/STARKTEXT</Link>
+        <Link href="/cobalt-systems" className="underline" style={{ color: "var(--brutal-blue)" }}>/COBALT-SYSTEMS</Link>
       </footer>
     </main>
   )

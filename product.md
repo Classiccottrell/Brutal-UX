@@ -22,42 +22,41 @@ Input a subject, get back an image that is *provably* on-system — not just sty
 ## 5. How it works
 
 1. **Read the constraint system.** The agent treats [`design.md`](./design.md) as binding. A user prompt that conflicts with it loses, unless the user explicitly declares an exception.
-2. **Select exactly one mode.** Every request resolves to Mode A (Technical Poster) or Mode B (Optical Line Study) — see `design.md` §2. If the subject implies both, the agent picks the mode the primary subject serves best rather than blending.
-3. **Compose against the formula.** The agent fills the parameterized prompt architecture (`design.md` §8: subject / setting / composition tokens / style block / lighting tokens / aspect ratio) and selects Style Block A or B based on the target engine.
-4. **Enforce hierarchy and spacing.** Typography, grid, base units, and negative-space targets are applied per mode (`design.md` §5–6), not left to the model's default instincts.
-5. **Run the anti-drift checklist.** Before delivering, the agent checks the output against Gate 1 (two hues, one subject, flat reproduction, correct mode) and the secondary checks (`design.md` §9). A Gate 1 failure means the output does not ship — the agent prefers subtraction (remove an element) over rationalizing a pass.
-6. **Fall back to the short directive when needed.** For rapid re-alignment mid-conversation, the agent can restate the compressed constraint summary instead of re-deriving from the full document.
+2. **Select exactly one mode.** Every request resolves to Mode A (Technical Poster) or Mode B (Optical Line Study) — see `design.md` §3. If the subject implies both, the agent picks the mode the primary subject serves best rather than blending (mode separation rule, also §3).
+3. **Compose against the template.** The agent fills the prompt construction template (`design.md` §8: subject/message, mode, composition, geometry, typography, texture) and pulls the matching master prompt block (§7: compact token block for Midjourney, natural-language block for Flux/DALL-E 3) plus the negative block.
+4. **Enforce hierarchy and spacing.** Typography, grid, base units, and negative-space targets are applied per mode (`design.md` §2 for tokens/grid, §3 for per-mode negative-space targets), not left to the model's default instincts.
+5. **Run the anti-drift checklist.** Before delivering, the agent checks the output against Gate 1 (two hues, one subject, flat reproduction, correct mode) and the Gate 2/3 checks (`design.md` §9). A Gate 1 failure means the output does not ship — the agent prefers subtraction (remove an element) over rationalizing a pass.
+6. **Fall back to the short directive when needed.** For rapid re-alignment mid-conversation, the agent can restate the compressed constraint summary (`design.md` §12) instead of re-deriving from the full document.
 
 ## 6. Feature set
 
 | Feature | Behavior |
 |---|---|
 | Strict constraint enforcement | Two-ink palette (`#1233C7` / `#F7F6F1`) and flat reproduction are enforced on every output, no opt-out. |
-| Mode selection | Exactly one of Mode A / Mode B per generation; mode-mixing is explicitly rejected (`design.md` §3). |
-| Hierarchy & spacing enforcement | Typography weight limits, display/label/metadata tiers, grid/base-unit alignment, and per-mode negative-space targets applied automatically. |
-| Texture budgeting | Dither/halftone/screentone usage capped and localized per mode (`design.md` §4) — never a full-canvas treatment. |
-| Anti-drift verification | Automated Gate 1 + secondary checklist run before delivery; failures trigger subtraction, not exception-making. |
-| Multi-engine prompt translation | Same design intent expressed correctly for Midjourney (token block), Flux/DALL-E 3 (prose block), with engine-specific parameter recommendations. |
-| Asset recipe library | Reusable prompt templates for common asset types (simple focal illustration, hero/complex composition, diagrammatic asset, and a sanctioned photographic complement) — see §8 below. |
+| Mode selection | Exactly one of Mode A / Mode B per generation; mode-mixing is explicitly rejected by the mode separation rule (`design.md` §3). |
+| Hierarchy & spacing enforcement | Typography weight limits, display/label/metadata tiers, grid/base-unit alignment (`design.md` §2), and per-mode negative-space targets (§3) applied automatically. |
+| Texture budgeting | Ordered dither/halftone/screentone usage capped to one or two texture families per mode and localized (`design.md` §4) — never a full-canvas treatment. |
+| Anti-drift verification | Automated Gate 1 (mandatory) + Gate 2/Gate 3 checklist run before delivery (`design.md` §9); failures trigger subtraction, not exception-making. |
+| Multi-engine prompt translation | Same design intent expressed correctly for Midjourney (compact token block), Flux/DALL-E 3 (natural-language block), with engine-specific parameter recommendations (`design.md` §13). |
+| Asset recipe library | Reusable prompt templates for common asset types (simple focal illustration, hero/complex composition, diagrammatic asset, optical line study) — see §8 below. |
 
 ## 7. Non-goals / explicit exclusions
 
-- **Not a general-purpose stylist.** It will not produce full-color, photorealistic, or softly-lit imagery outside the one sanctioned exception.
+- **Not a general-purpose stylist.** It will not produce full-color, photorealistic, or softly-lit imagery — human/organic subjects are rendered as technical scans or screenprinted forms, never polished photography (`design.md` §5).
 - **Not a hybrid-mode generator.** It will not average Mode A and Mode B "for variety" — a request for both is resolved to one mode, not blended.
 - **Not a long-copy layout tool.** The system is built for short titles and numerals; it is not meant to typeset paragraphs or dense body text.
 - **Not a lighting/render-quality showcase.** Glossy 3D, ambient occlusion, bloom, and naturalistic shading are treated as defects, not desirable rendering fidelity.
 
 ## 8. Asset recipe library
 
-Reusable starting points, each mapped to a use case. Full production prompts and the model syntax cheat sheet live in `design.md` §8; these are the shapes those prompts take.
+Reusable starting points, each mapped to a use case. Full production prompts live in `design.md` §7–8 (master prompt blocks and construction template); the model syntax cheat sheet in §13 covers per-engine translation.
 
 | Recipe | Use case | Mode |
 |---|---|---|
 | **Simple focal illustration** | A single iconic subject, centered on grid, minimal setting — e.g. an isolated mechanical/anatomical object. | A |
-| **Hero / complex illustration** | A multi-layered system or environment (cityscape, network), optionally a paired vertical-poster diptych. | A |
-| **Diagrammatic / infographic asset** | Flow charts, node networks, UI-bound diagrams — optimized for legibility at small sizes, `--ar 1:1`. | A |
-| **Optical line study** | Abstract letterform, motif, or pattern built from exactly one transformation operation. | B |
-| **Complementary photography** *(sanctioned exception)* | Real-world photography color-graded and composed to evoke the system's mood (cobalt/white, high contrast) without graphic artifacts. Must be explicitly invoked — flat-reproduction rule is otherwise mandatory. | Exception |
+| **Hero / complex illustration** | A multi-layered system or environment (cityscape, network), optionally a paired-poster diptych with matching margins and hierarchy. | A |
+| **Diagrammatic / infographic asset** | Flow charts, node networks, UI-bound diagrams — optimized for legibility at small sizes. | A |
+| **Optical line study** | Abstract letterform, motif, or pattern built from exactly one transformation operation (repeat, offset, extrude, crop, warp, outline, or dissolve). | B |
 
 ## 9. Success criteria
 
@@ -67,6 +66,6 @@ Reusable starting points, each mapped to a use case. Full production prompts and
 
 ## 10. Open questions / future considerations
 
-- Whether base grid units (`design.md` §6) should be recalibrated once real output resolutions and print targets are known — the current 8px base unit is a working default, not a measured constant.
+- Whether the base grid unit `u` (`design.md` §2) should be pinned to a concrete pixel/point value once real output resolutions and print targets are known, rather than left as a relative unit.
 - Whether a third asset recipe category (motion/animation frame sequences) is worth formalizing if the system extends beyond static imagery.
-- Whether engine-specific negative prompts (explicit "no gradient / no photoreal / no third color" exclusion lists) should be standardized alongside the positive Style Blocks in `design.md` §8.
+- Whether the reference-image role table (`design.md` §6) should grow alongside the asset recipe library as more reference material is added.
