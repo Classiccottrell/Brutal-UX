@@ -66,3 +66,10 @@ test("csv decimal string", () => {
   assert.equal(centsToDecimalString(-4000), "-40.00")
   assert.equal(centsToDecimalString(0), "0.00")
 })
+
+test("csv decimal string: sub-dollar amounts pad correctly", () => {
+  assert.equal(centsToDecimalString(5), "0.05")
+  assert.equal(centsToDecimalString(-5), "-0.05")
+  assert.equal(centsToDecimalString(50), "0.50")
+  assert.equal(centsToDecimalString(-1), "-0.01")
+})

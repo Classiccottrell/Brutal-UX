@@ -185,6 +185,13 @@ export function stepSim(state: SimState, rng: Rng): SimState {
   return { ...state, tick: state.tick + 1, incidentId, incidentSeq, nodes, lastEvents: events }
 }
 
+/** Which operator commands are valid to offer for a node in this status. */
+export function availableCommands(status: NodeStatus): Command[] {
+  if (status === "SEVERED") return ["RESTART"]
+  if (status === "DRAINED") return ["KILL", "RESTART"]
+  return ["KILL", "RESTART", "DRAIN"]
+}
+
 /** One-click trigger execution: immediate, no confirmation. */
 export function execCommand(state: SimState, nodeId: string, cmd: Command, rng: Rng): SimState {
   const events: StepEvent[] = []

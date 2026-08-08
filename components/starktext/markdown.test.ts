@@ -1,13 +1,8 @@
-// Zero-dep tests. Node 24 strips types natively:
+// Zero-dep tests. Node strips types natively:
 //   node --test components/starktext/markdown.test.ts
 import test from "node:test"
 import assert from "node:assert/strict"
-
-// Node needs the real .ts extension at runtime; tsconfig lacks
-// allowImportingTsExtensions, so resolve dynamically and cast for types.
-const { compileMarkdown, slugify } = (await import(
-  "./markdown" + ".ts"
-)) as typeof import("./markdown")
+import { compileMarkdown, escapeHtml, slugify } from "./markdown.ts"
 
 test("headings compile", () => {
   assert.equal(compileMarkdown("# HELLO"), "<h1>HELLO</h1>")
@@ -54,6 +49,41 @@ test("inline code escapes HTML and blocks other inline rules", () => {
 test("lists and blockquotes compile", () => {
   assert.equal(compileMarkdown("- one\n- two"), "<ul><li>one</li><li>two</li></ul>")
   assert.equal(compileMarkdown("> stark"), "<blockquote><p>stark</p></blockquote>")
+})
+
+test("escapeHtml escapes all five entities directly", () => {
+  assert.equal(escapeHtml(`<a href="x">'&'</a>`), "&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;")
+})
+
+test("unterminated fenced code block runs to EOF instead of dropping content", () => {
+  const out = compileMarkdown("```\nline one\nline two")
+  assert.equal(out, "<pre><code>line one\nline two</code></pre>")
+})
+
+test("consecutive headings of different levels each compile independently", () => {
+  assert.equal(
+    compileMarkdown("# ONE\n## TWO\n### THREE"),
+    "<h1>ONE</h1>\n<h2>TWO</h2>\n<h3>THREE</h3>"
+  )
+})
+
+test("consecutive blockquote lines join into a single blockquote paragraph", () => {
+  assert.equal(
+    compileMarkdown("> line one\n> line two"),
+    "<blockquote><p>line one line two</p></blockquote>"
+  )
+})
+
+test("data: scheme links are rejected like javascript:", () => {
+  assert.equal(compileMarkdown("[x](data:text/html,evil)"), "<p>x</p>")
+})
+
+test("multiple paragraphs separated by a blank line compile as separate <p> blocks", () => {
+  assert.equal(compileMarkdown("first\n\nsecond"), "<p>first</p>\n<p>second</p>")
+})
+
+test("empty input compiles to empty output", () => {
+  assert.equal(compileMarkdown(""), "")
 })
 
 test("slugify", () => {

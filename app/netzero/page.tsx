@@ -3,36 +3,20 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 
+import { parseDollarsToCents, formatCents } from "@/components/netzero/money.mjs"
 import {
-  parseDollarsToCents,
-  formatCents,
-  centsToDecimalString,
-} from "@/components/netzero/money.mjs"
+  LEDGER_STORAGE_KEY,
+  buildLedgerCsv,
+  parseStoredLedger,
+  type Entry,
+  type Ledger,
+} from "@/components/netzero/ledger"
 
-type Entry = { id: string; date: string /* ISO yyyy-mm-dd */; desc: string; cents: number }
-type Ledger = { start: number; entries: Entry[] }
-
-const KEY = "netzero.v1"
+const KEY = LEDGER_STORAGE_KEY
 
 function loadLedger(): Ledger | null {
   try {
-    const raw = window.localStorage.getItem(KEY)
-    if (!raw) return null
-    const data = JSON.parse(raw) as unknown
-    if (typeof data !== "object" || data === null) return null
-    const { start, entries } = data as { start?: unknown; entries?: unknown }
-    if (typeof start !== "number" || !Number.isSafeInteger(start)) return null
-    if (!Array.isArray(entries)) return null
-    const clean = entries.filter(
-      (e): e is Entry =>
-        typeof e === "object" && e !== null &&
-        typeof (e as Entry).id === "string" &&
-        typeof (e as Entry).date === "string" &&
-        typeof (e as Entry).desc === "string" &&
-        typeof (e as Entry).cents === "number" &&
-        Number.isSafeInteger((e as Entry).cents)
-    )
-    return { start, entries: clean }
+    return parseStoredLedger(window.localStorage.getItem(KEY))
   } catch {
     return null
   }
@@ -147,13 +131,7 @@ function LedgerScreen({
   }
 
   function exportCsv() {
-    const esc = (s: string) => `"${s.replace(/"/g, '""')}"`
-    const lines = [
-      "date,description,amount",
-      `,${esc("STARTING LIQUIDITY")},${centsToDecimalString(ledger.start)}`,
-      ...ledger.entries.map((e) => `${e.date},${esc(e.desc)},${centsToDecimalString(e.cents)}`),
-    ]
-    const blob = new Blob([lines.join("\n") + "\n"], { type: "text/csv;charset=utf-8" })
+    const blob = new Blob([buildLedgerCsv(ledger)], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url

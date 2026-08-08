@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   NODE_DEFS,
+  availableCommands,
   execCommand,
   initSim,
   ringPush,
@@ -50,9 +51,8 @@ const TRIGGERS: { cmd: Command; label: string; color: string }[] = [
 ]
 
 function triggersFor(status: NodeStatus) {
-  if (status === "SEVERED") return TRIGGERS.filter((t) => t.cmd === "RESTART")
-  if (status === "DRAINED") return TRIGGERS.filter((t) => t.cmd !== "DRAIN")
-  return TRIGGERS
+  const allowed = new Set(availableCommands(status))
+  return TRIGGERS.filter((t) => allowed.has(t.cmd))
 }
 
 function StripCell({ label, value, color }: { label: string; value: string; color: string }) {
