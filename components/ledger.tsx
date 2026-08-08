@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 
+import { validateRow } from "@/components/ledger-row"
+
 type Row = { id: number; task: string; value: number }
 
 let nextId = 1
@@ -14,14 +16,11 @@ export function Ledger() {
   const [valueBad, setValueBad] = useState(false)
 
   function add() {
-    const t = task.trim()
-    const v = parseFloat(value)
-    const badT = t.length === 0
-    const badV = !Number.isFinite(v)
-    setTaskBad(badT)
-    setValueBad(badV)
-    if (badT || badV) return
-    setRows([...rows, { id: nextId++, task: t, value: v }])
+    const result = validateRow(task, value)
+    setTaskBad(!result.ok && result.taskBad)
+    setValueBad(!result.ok && result.valueBad)
+    if (!result.ok) return
+    setRows([...rows, { id: nextId++, task: result.task, value: result.value }])
     setTask("")
     setValue("")
   }
