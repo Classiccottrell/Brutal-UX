@@ -471,7 +471,9 @@ export default function TerminalRed() {
 
       <section className="brutal-divider py-8">
         <h2 className="text-[32px] font-bold uppercase mb-6">DISCUSSION</h2>
-        <Comments />
+        <div className="brutal-border max-h-[600px] overflow-y-auto">
+          <Comments />
+        </div>
       </section>
     </main>
   )

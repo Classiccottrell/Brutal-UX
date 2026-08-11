@@ -35,7 +35,7 @@ export function PositionPinsLayer() {
               pointerEvents: "auto",
               transform: "translate(-50%, -50%)",
             }}
-            className="flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-black bg-white px-1 text-[11px] font-bold text-black"
+            className="mineral-pin-badge flex h-6 min-w-6 items-center justify-center px-1 text-[11px] font-bold"
             onClick={(event) => {
               event.stopPropagation()
               openPin(id, new DOMRect(event.clientX, event.clientY, 0, 0))

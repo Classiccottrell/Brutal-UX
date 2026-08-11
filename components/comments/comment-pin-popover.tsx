@@ -27,6 +27,9 @@ function readGiscusSession(): string {
   }
 }
 
+const MIN_IFRAME_HEIGHT = 160
+const MAX_IFRAME_HEIGHT = 440 // popover max-height (480) minus the header row
+
 // Reads the session the fork's client.ts already wrote to this origin's
 // localStorage (page-level widget auth handoff) and opens a compact iframe
 // onto the fork's pin-widget page — no separate OAuth flow.
@@ -45,6 +48,7 @@ export function CommentPinPopover({
   const pathname = usePathname()
   const term = deriveTerm(pathname)
   const popoverRef = React.useRef<HTMLDivElement>(null)
+  const [iframeHeight, setIframeHeight] = React.useState(MIN_IFRAME_HEIGHT)
 
   React.useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -68,6 +72,22 @@ export function CommentPinPopover({
     }
   }, [onClose])
 
+  // pin-widget.tsx (fork) reports its actual content height via postMessage
+  // — a cross-origin iframe's content can't be measured directly. Clamped
+  // to MAX_IFRAME_HEIGHT; content taller than that scrolls inside the
+  // iframe itself (the browser's own default for a height-constrained
+  // iframe), no extra CSS needed here.
+  React.useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (event.origin !== giscusHost) return
+      const resizeHeight = event.data?.giscus?.resizeHeight
+      if (typeof resizeHeight !== "number") return
+      setIframeHeight(Math.max(MIN_IFRAME_HEIGHT, Math.min(resizeHeight, MAX_IFRAME_HEIGHT)))
+    }
+    window.addEventListener("message", handleMessage)
+    return () => window.removeEventListener("message", handleMessage)
+  }, [giscusHost])
+
   const session = React.useMemo(() => readGiscusSession(), [])
   const src = React.useMemo(() => {
     const params = new URLSearchParams({
@@ -88,15 +108,15 @@ export function CommentPinPopover({
   return (
     <div
       ref={popoverRef}
-      className="brutal-border fixed z-50 bg-white"
-      style={{ top: anchorRect.bottom + 8, left: anchorRect.left, width: 340, maxHeight: 480 }}
+      className="mineral-popover fixed z-50"
+      style={{ top: anchorRect.bottom + 8, left: anchorRect.left, width: 340 }}
     >
-      <div className="flex items-center justify-between border-b-2 border-black px-2 py-1">
-        <span className="text-[13px] font-bold uppercase">COMMENT</span>
+      <div className="mineral-popover-header flex items-center justify-between px-3 py-2">
+        <span className="text-[13px] font-bold uppercase">Comment</span>
         <button
           type="button"
           onClick={onClose}
-          className="text-[13px] font-bold"
+          className="text-[15px] font-bold leading-none"
           aria-label="Close"
         >
           ×
@@ -105,8 +125,8 @@ export function CommentPinPopover({
       <iframe
         src={src}
         title="giscus pin comments"
-        className="w-full"
-        style={{ height: 420, border: "none" }}
+        className="block w-full"
+        style={{ height: iframeHeight, border: "none" }}
       />
     </div>
   )

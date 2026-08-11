@@ -19,7 +19,7 @@ export function Comments() {
       strict={COMMENTS_CONFIG.strict ? "1" : "0"}
       reactionsEnabled="1"
       emitMetadata="0"
-      inputPosition="bottom"
+      inputPosition="top" // keeps the compose box visible without scrolling now that the section around it has a fixed max-height
       theme="mineral"
       lang="en"
       loading="lazy"

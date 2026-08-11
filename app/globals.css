@@ -215,3 +215,54 @@ html {
 /* Hard flash for absolute-red alerts: steps(), no fade */
 @keyframes brutal-flash { 0%, 49% { background: var(--brutal-red); color: var(--brutal-white); } 50%, 100% { background: var(--brutal-black); color: var(--brutal-red); } }
 .brutal-alert { animation: brutal-flash 0.8s steps(1) infinite !important; animation-duration: 0.8s !important; }
+/* ============================================================
+   MINERAL COMMENT UI
+   Tokens copied verbatim from System_Config/html-template.html's frozen
+   OKLCH block (same source used for the giscus fork's mineral.css theme)
+   — not re-derived. Deliberately breaks the brutal enforcement layer's
+   zero-radius/zero-shadow law above (rounded corners + drop shadow) for
+   the comment pin badge and popover only; both properties are forced by
+   a universal `* { ... !important }` rule, so overrides here must also
+   be !important on a more specific selector to win.
+   ============================================================ */
+:root {
+  --mineral-surface: oklch(100% 0 0deg);
+  --mineral-ink: oklch(22.89% 0.0197 258.35deg);
+  --mineral-rule: oklch(85.83% 0.023 260.72deg);
+  --mineral-accent: oklch(56.67% 0.1712 259.62deg);
+  --mineral-btn-ink: oklch(100% 0 0deg);
+  --mineral-radius: 0.1875rem;
+  --mineral-shadow: 0 1px 2px oklch(22.89% 0.0197 258.35deg / 8%),
+    0 8px 24px oklch(22.89% 0.0197 258.35deg / 18%);
+}
+
+.dark {
+  --mineral-surface: oklch(28.89% 0.0197 258.35deg);
+  --mineral-ink: oklch(97.47% 0.0119 259.82deg);
+  --mineral-rule: oklch(100% 0 0deg / 15%);
+  --mineral-accent: oklch(75.73% 0.1164 259.79deg);
+  --mineral-btn-ink: oklch(19.39% 0.0697 257.3deg);
+  --mineral-shadow: 0 1px 2px oklch(0% 0 0deg / 30%), 0 8px 24px oklch(0% 0 0deg / 50%);
+}
+
+.mineral-pin-badge {
+  border-radius: 9999px !important;
+  box-shadow: var(--mineral-shadow) !important;
+  background: var(--mineral-accent);
+  color: var(--mineral-btn-ink);
+  border: 2px solid white;
+}
+
+.mineral-popover {
+  border-radius: calc(var(--mineral-radius) * 3) !important;
+  box-shadow: var(--mineral-shadow) !important;
+  background: var(--mineral-surface);
+  border: 1px solid var(--mineral-rule);
+  overflow: hidden;
+}
+
+.mineral-popover-header {
+  background: var(--mineral-surface);
+  color: var(--mineral-ink);
+  border-bottom: 1px solid var(--mineral-rule);
+}
