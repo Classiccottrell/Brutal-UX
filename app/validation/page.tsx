@@ -1,4 +1,6 @@
 import Link from "next/link"
+import { Comments } from "@/components/comments"
+import { PositionPinsLayer } from "@/components/comments/position-pins-layer"
 
 export const metadata = {
   title: "BRUTAL UX — VALIDATION",
@@ -50,7 +52,8 @@ const cell = "border-2 border-black p-2 align-top text-[13px]"
 
 export default function Validation() {
   return (
-    <main className="bg-white text-black max-w-5xl mx-auto px-4">
+    <main className="bg-white text-black max-w-5xl mx-auto px-4 relative">
+      <PositionPinsLayer />
       <section className="py-8">
         <Link href="/" className="text-[13px] font-bold uppercase underline" style={{ color: "var(--brutal-blue)" }}>
           ← INDEX
@@ -223,6 +226,11 @@ export default function Validation() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="brutal-divider py-8">
+        <h2 className="text-[32px] font-bold uppercase mb-6">DISCUSSION</h2>
+        <Comments />
       </section>
 
       <footer className="brutal-divider py-6 text-[13px] font-bold uppercase">

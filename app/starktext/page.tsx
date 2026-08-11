@@ -1,6 +1,8 @@
 "use client"
 
 import Link from "next/link"
+import { Comments } from "@/components/comments"
+import { PositionPinsLayer } from "@/components/comments/position-pins-layer"
 import { useEffect, useState } from "react"
 import { compileMarkdown, escapeHtml, slugify } from "@/components/starktext/markdown"
 import { buildRss, buildStandaloneHtml, type Post } from "@/components/starktext/export"
@@ -104,7 +106,8 @@ export default function StarkTextStudio() {
   const mode: View["kind"] = view.kind !== "INDEX" && active ? view.kind : "INDEX"
 
   return (
-    <main className="bg-white text-black max-w-6xl mx-auto px-4 pb-12">
+    <main className="bg-white text-black max-w-6xl mx-auto px-4 pb-12 relative">
+      <PositionPinsLayer />
       <header className="py-4 border-b-2 border-black flex flex-wrap items-baseline gap-4">
         <Link href="/" className="underline text-[13px] font-bold uppercase" style={{ color: "var(--brutal-blue)" }}>
           ← BRUTAL UX
@@ -300,6 +303,11 @@ export default function StarkTextStudio() {
           </footer>
         </>
       ) : null}
+
+      <section className="brutal-divider py-8">
+        <h2 className="text-[32px] font-bold uppercase mb-6">DISCUSSION</h2>
+        <Comments />
+      </section>
 
       <style>{`
         .starktext-preview h1 { font-size: 32px; font-weight: 700; text-transform: uppercase; margin: 0 0 12px; }

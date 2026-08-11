@@ -1,4 +1,6 @@
 import Link from "next/link"
+import { Comments } from "@/components/comments"
+import { PositionPinsLayer } from "@/components/comments/position-pins-layer"
 
 const INVARIANTS = [
   "TWO-COLOUR SYSTEM — INK AND PAPER ONLY.",
@@ -21,7 +23,8 @@ const STEPS = [5, 4, 3, 2, 1, 0]
 
 export default function CobaltSystemsPage() {
   return (
-    <main className="bg-white text-black max-w-5xl mx-auto px-4">
+    <main className="bg-white text-black max-w-5xl mx-auto px-4 relative">
+      <PositionPinsLayer />
       <section className="py-8">
         <Link href="/" className="underline text-[13px] font-bold uppercase" style={{ color: "var(--brutal-blue)" }}>
           ← INDEX
@@ -179,6 +182,11 @@ export default function CobaltSystemsPage() {
         <p className="text-[13px] font-bold uppercase mb-8">
           FULL SPEC: <code className="border-2 border-black px-1">/design.md</code> AT THE REPOSITORY ROOT.
         </p>
+      </section>
+
+      <section className="brutal-divider py-8">
+        <h2 className="text-[32px] font-bold uppercase mb-6">DISCUSSION</h2>
+        <Comments />
       </section>
 
       <footer className="brutal-divider py-6 text-[13px] font-bold uppercase">

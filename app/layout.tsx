@@ -4,7 +4,12 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { InkProvider } from "@/components/ink-provider"
 import { InkToggle } from "@/components/ink-toggle"
+import { CommentModeProvider } from "@/components/comment-mode-provider"
+import { CommentModeToggle } from "@/components/comment-mode-toggle"
+import { CommentPinPopoverHost } from "@/components/comment-pin-popover-host"
+import { PinDataProvider } from "@/components/pin-data-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { COMMENTS_CONFIG } from "@/lib/comments/config"
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -33,8 +38,19 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           <InkProvider>
-            <TooltipProvider>{children}</TooltipProvider>
-            <InkToggle />
+            <CommentModeProvider>
+              <PinDataProvider
+                giscusHost={COMMENTS_CONFIG.giscusHost}
+                repo={COMMENTS_CONFIG.repo}
+                category={COMMENTS_CONFIG.category}
+                strict={COMMENTS_CONFIG.strict}
+              >
+                <TooltipProvider>{children}</TooltipProvider>
+                <InkToggle />
+                <CommentModeToggle />
+                <CommentPinPopoverHost />
+              </PinDataProvider>
+            </CommentModeProvider>
           </InkProvider>
         </ThemeProvider>
       </body>

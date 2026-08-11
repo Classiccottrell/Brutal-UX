@@ -2,6 +2,8 @@ import Link from "next/link"
 
 import { Ledger } from "@/components/ledger"
 import { Repository } from "@/components/repository"
+import { Comments } from "@/components/comments"
+import { PositionPinsLayer } from "@/components/comments/position-pins-layer"
 
 const LENSES = [
   {
@@ -46,7 +48,8 @@ const PALETTE = [
 
 export default function Home() {
   return (
-    <main className="bg-white text-black max-w-5xl mx-auto px-4">
+    <main className="bg-white text-black max-w-5xl mx-auto px-4 relative">
+      <PositionPinsLayer />
       {/* SECTION 01 — MANIFESTO & TOKENS */}
       <section className="py-8">
         <h1 className="text-[48px] font-bold uppercase leading-none">BRUTAL UX</h1>
@@ -115,6 +118,14 @@ export default function Home() {
         </h2>
         <h3 className="text-[24px] font-bold uppercase mb-6">THE NO-BULLSH*T LEDGER</h3>
         <Ledger />
+      </section>
+
+      {/* SECTION 04 — DISCUSSION */}
+      <section className="brutal-divider py-8">
+        <h2 className="text-[32px] font-bold uppercase mb-6">
+          SECTION 04 — DISCUSSION
+        </h2>
+        <Comments />
       </section>
 
       <footer className="brutal-divider py-6 text-[13px] font-bold uppercase">

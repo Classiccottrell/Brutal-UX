@@ -4,6 +4,8 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 
 import { parseDollarsToCents, formatCents } from "@/components/netzero/money.mjs"
+import { Comments } from "@/components/comments"
+import { PositionPinsLayer } from "@/components/comments/position-pins-layer"
 import {
   LEDGER_STORAGE_KEY,
   buildLedgerCsv,
@@ -290,7 +292,8 @@ export default function NetZero() {
   }
 
   return (
-    <main className="bg-white text-black max-w-5xl mx-auto px-4">
+    <main className="bg-white text-black max-w-5xl mx-auto px-4 relative">
+      <PositionPinsLayer />
       <header className="py-4 border-b-2 border-black flex items-baseline gap-4 flex-wrap">
         <Link href="/" className="underline text-[13px] font-bold uppercase">
           ← BRUTAL UX
@@ -305,6 +308,11 @@ export default function NetZero() {
       ) : (
         <LedgerScreen ledger={ledger} commit={commit} reset={reset} />
       )}
+
+      <section className="brutal-divider py-8">
+        <h2 className="text-[32px] font-bold uppercase mb-6">DISCUSSION</h2>
+        <Comments />
+      </section>
     </main>
   )
 }

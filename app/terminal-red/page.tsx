@@ -1,6 +1,8 @@
 "use client"
 
 import Link from "next/link"
+import { Comments } from "@/components/comments"
+import { PositionPinsLayer } from "@/components/comments/position-pins-layer"
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   NODE_DEFS,
@@ -240,7 +242,8 @@ export default function TerminalRed() {
       : "--:--"
 
   return (
-    <main className="min-h-screen w-full px-3 pb-6 uppercase" style={{ background: "#000000", color: W }}>
+    <main className="min-h-screen w-full px-3 pb-6 uppercase relative" style={{ background: "#000000", color: W }}>
+      <PositionPinsLayer />
       <div className="fixed inset-0 -z-10" style={{ background: "#000000" }} />
 
       <header className="flex items-baseline justify-between gap-4 py-2" style={{ borderBottom: `2px solid ${W}` }}>
@@ -464,6 +467,11 @@ export default function TerminalRed() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="brutal-divider py-8">
+        <h2 className="text-[32px] font-bold uppercase mb-6">DISCUSSION</h2>
+        <Comments />
       </section>
     </main>
   )
